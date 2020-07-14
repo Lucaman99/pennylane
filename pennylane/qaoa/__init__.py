@@ -11,14 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-r"""
-Subroutines are the most basic template, consisting of a collection of quantum operations, and not fulfilling
-any of the characteristics of other templates (i.e. to prepare a specific state, to be repeated or to encode features).
-"""
+"""This module contains classes and functions for constructing QAOA workflows."""
 
-from .arbitrary_unitary import ArbitraryUnitary
-from .double_excitation_unitary import DoubleExcitationUnitary
-from .interferometer import Interferometer
-from .single_excitation_unitary import SingleExcitationUnitary
-from .uccsd import UCCSD
-from .time_evolution import TimeEvolution
+from .mixers import *
+from .problems import *
+from .init import *
+
+from .circuit import *
+from .layers import *

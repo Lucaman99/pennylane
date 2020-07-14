@@ -26,7 +26,8 @@ from pennylane.templates.subroutines import (
     ArbitraryUnitary,
     SingleExcitationUnitary,
     DoubleExcitationUnitary,
-    UCCSD
+    UCCSD,
+    TimeEvolution
 )
 
 from pennylane.templates.subroutines.arbitrary_unitary import (
@@ -799,3 +800,108 @@ class TestUCCSDUnitary:
         jac_A = circuit.jacobian((w_ph_0, w_ph_1, w_pphh), method="A")
         jac_F = circuit.jacobian((w_ph_0, w_ph_1, w_pphh), method="F")
         assert jac_A == pytest.approx(jac_F, abs=tol)
+
+class TestTimeEvolution:
+    """Tests for the UCCSD template from the pennylane.templates.subroutine module."""
+
+    def test_hamiltonian_error(self):
+        """Tests if the correct error is thrown when `hamiltonian` is not a pennylane.Hamiltonian object"""
+
+        n_wires = 2
+        dev = qml.device('default.qubit', wires=n_wires)
+
+        hamiltonian = np.array([[1, 1], [1, 1]])
+
+        @qml.qnode(dev)
+        def circuit():
+            TimeEvolution(hamiltonian, 2, N=3)
+            return [qml.expval(qml.PauliZ(wires=i)) for i in range(n_wires)]
+
+        with pytest.raises(ValueError) as info:
+            output = circuit()
+        assert (
+                "`hamiltonian` must be of type pennylane.Hamiltonian"
+                in str(info.value)
+        )
+
+    @pytest.mark.parametrize(
+        ("hamiltonian", "output"),
+        [
+            (qml.Hamiltonian([1, 1], [qml.PauliX(0), qml.Hadamard(0)]), "Hadamard"),
+            (qml.Hamiltonian([1, 1], [qml.PauliX(0) @ qml.Hermitian(np.array([[1, 1], [1, 1]]), 1), qml.PauliX(0)]), "Hermitian")
+        ]
+    )
+    def test_non_pauli_error(self, hamiltonian, output):
+        """Tests is the correct errors are thrown when the user attempts to input a matrix with non-Pauli terms"""
+
+        n_wires = 2
+        dev = qml.device('default.qubit', wires=n_wires)
+
+        @qml.qnode(dev)
+        def circuit():
+            TimeEvolution(hamiltonian, 2, N=3)
+            return [qml.expval(qml.PauliZ(wires=i)) for i in range(n_wires)]
+
+        with pytest.raises(ValueError) as info:
+            output = circuit()
+        assert (
+                "`hamiltonian` must be written in terms of Pauli matrices, got '{}'".format(output)
+                in str(info.value)
+        )
+
+    @pytest.mark.parametrize(
+        ("time", "hamiltonian", "steps", "gates"),
+        [
+            (2, qml.Hamiltonian([1, 1], [qml.PauliX(0), qml.PauliX(1)]), 2,
+             [
+                 qml.PauliRot(-2.0, 'X', wires=[0]),
+                 qml.PauliRot(-2.0, 'X', wires=[1]),
+                 qml.PauliRot(-2.0, 'X', wires=[0]),
+                 qml.PauliRot(-2.0, 'X', wires=[1])
+             ]
+             ),
+
+            (2, qml.Hamiltonian([2, 0.5], [qml.PauliX(0), qml.PauliZ(0) @ qml.PauliX(1)] ), 2,
+             [
+                 qml.PauliRot(-4.0, 'X', wires=[0]),
+                 qml.PauliRot(-1.0, 'ZX', wires=[0, 1]),
+                 qml.PauliRot(-4.0, 'X', wires=[0]),
+                 qml.PauliRot(-1.0, 'ZX', wires=[0, 1])
+             ]
+             )
+
+        ]
+    )
+    def test_evolution_operations(self, time, hamiltonian, steps, gates):
+        """Tests that the sequence of gates implemented in the TimeEvolution template is correct"""
+
+        with qml.utils.OperationRecorder() as rec:
+            TimeEvolution(hamiltonian, time, N=steps)
+
+        for i, gate in enumerate(rec.operations):
+
+            prep = [gate.parameters, gate.wires]
+            target = [gates[i].parameters, gates[i].wires]
+
+            assert prep == target
+
+    @pytest.mark.parametrize(
+        ("time", "hamiltonian", "steps", "expectation"),
+        [
+            (np.pi, qml.Hamiltonian([1, 1], [qml.PauliX(0), qml.PauliX(1)]), 2, [1.0, 1.0]),
+            (np.pi/2, qml.Hamiltonian([0.5, 1], [qml.PauliY(0), qml.Identity(0) @ qml.PauliX(1)]), 1, [0.0, -1.0]),
+            (np.pi/4, qml.Hamiltonian([1, 1, 1], [qml.PauliX(0), qml.PauliZ(0) @ qml.PauliZ(1), qml.PauliX(1)]), 1, [0.0, 0.0])
+        ]
+    )
+    def test_evolution_output(self, time, hamiltonian, steps, expectation):
+        """Tests that the output from the TimeEvolution template is correct"""
+
+        n_wires = 2
+        dev = qml.device('default.qubit', wires=n_wires)
+
+        @qml.qnode(dev)
+        def circuit():
+            TimeEvolution(hamiltonian, time, N=steps)
+            return [qml.expval(qml.PauliZ(wires=i)) for i in range(n_wires)]
+
+        assert np.allclose(circuit(), expectation)

@@ -21,6 +21,7 @@ import cmath
 import functools
 import numpy as np
 
+import pennylane
 from pennylane.templates import template
 from pennylane.operation import AnyWires, Observable, Operation, DiagonalOperation
 from pennylane.templates.state_preparations import BasisStatePreparation, MottonenStatePreparation
@@ -844,33 +845,41 @@ class PauliRot(Operation):
 
     @classmethod
     def _matrix(cls, *params):
+
         theta = params[0]
         pauli_word = params[1]
 
-        if not PauliRot._check_pauli_word(pauli_word):
-            raise ValueError(
-                'The given Pauli word "{}" contains characters that are not allowed.'
-                " Allowed characters are I, X, Y and Z".format(pauli_word)
+        if all([i == "I" for i in pauli_word]):
+            return expand(
+                np.identity(2), [0],
+                list(range(len(pauli_word))),
             )
 
-        # We first generate the matrix excluding the identity parts and expand it afterwards.
-        # To this end, we have to store on which wires the non-identity parts act
-        non_identity_wires, non_identity_gates = zip(
-            *[(wire, gate) for wire, gate in enumerate(pauli_word) if gate != "I"]
-        )
+        else:
+            if not PauliRot._check_pauli_word(pauli_word):
+                raise ValueError(
+                    'The given Pauli word "{}" contains characters that are not allowed.'
+                    " Allowed characters are I, X, Y and Z".format(pauli_word)
+                )
 
-        multi_Z_rot_matrix = MultiRZ._matrix(theta, len(non_identity_gates))
+            # We first generate the matrix excluding the identity parts and expand it afterwards.
+            # To this end, we have to store on which wires the non-identity parts act
+            non_identity_wires, non_identity_gates = zip(
+                *[(wire, gate) for wire, gate in enumerate(pauli_word) if gate != "I"]
+            )
 
-        # now we conjugate with Hadamard and RX to create the Pauli string
-        conjugation_matrix = functools.reduce(
-            np.kron, [PauliRot._PAULI_CONJUGATION_MATRICES[gate] for gate in non_identity_gates],
-        )
+            multi_Z_rot_matrix = MultiRZ._matrix(theta, len(non_identity_gates))
 
-        return expand(
-            conjugation_matrix.T.conj() @ multi_Z_rot_matrix @ conjugation_matrix,
-            non_identity_wires,
-            list(range(len(pauli_word))),
-        )
+            # now we conjugate with Hadamard and RX to create the Pauli string
+            conjugation_matrix = functools.reduce(
+                np.kron, [PauliRot._PAULI_CONJUGATION_MATRICES[gate] for gate in non_identity_gates],
+            )
+
+            return expand(
+                conjugation_matrix.T.conj() @ multi_Z_rot_matrix @ conjugation_matrix,
+                non_identity_wires,
+                list(range(len(pauli_word))),
+            )
 
     @classmethod
     def _eigvals(cls, theta, pauli_word):
@@ -879,23 +888,25 @@ class PauliRot(Operation):
     @staticmethod
     @template
     def decomposition(theta, pauli_word, wires):
-        active_wires, active_gates = zip(
-            *[(wire, gate) for wire, gate in zip(wires, pauli_word) if gate != "I"]
-        )
 
-        for wire, gate in zip(active_wires, active_gates):
-            if gate == "X":
-                Hadamard(wires=[wire])
-            elif gate == "Y":
-                RX(np.pi / 2, wires=[wire])
+        if not all([i == "I" for i in pauli_word]):
+            active_wires, active_gates = zip(
+                *[(wire, gate) for wire, gate in zip(wires, pauli_word) if gate != "I"]
+            )
 
-        MultiRZ(theta, wires=list(active_wires))
+            for wire, gate in zip(active_wires, active_gates):
+                if gate == "X":
+                    Hadamard(wires=[wire])
+                elif gate == "Y":
+                    RX(np.pi / 2, wires=[wire])
 
-        for wire, gate in zip(active_wires, active_gates):
-            if gate == "X":
-                Hadamard(wires=[wire])
-            elif gate == "Y":
-                RX(-np.pi / 2, wires=[wire])
+            MultiRZ(theta, wires=list(active_wires))
+
+            for wire, gate in zip(active_wires, active_gates):
+                if gate == "X":
+                    Hadamard(wires=[wire])
+                elif gate == "Y":
+                    RX(-np.pi / 2, wires=[wire])
 
 
 class CRX(Operation):

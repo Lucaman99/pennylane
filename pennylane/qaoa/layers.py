@@ -12,13 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 r"""
-Subroutines are the most basic template, consisting of a collection of quantum operations, and not fulfilling
-any of the characteristics of other templates (i.e. to prepare a specific state, to be repeated or to encode features).
+Contains the functions that define cost and mixer layers
 """
+from ..templates import TimeEvolution
 
-from .arbitrary_unitary import ArbitraryUnitary
-from .double_excitation_unitary import DoubleExcitationUnitary
-from .interferometer import Interferometer
-from .single_excitation_unitary import SingleExcitationUnitary
-from .uccsd import UCCSD
-from .time_evolution import TimeEvolution
+def mixer(hamiltonian):
+
+    return lambda alpha: TimeEvolution(alpha, hamiltonian, N=1)
+
+def cost(hamiltonian):
+
+    return lambda gamma: TimeEvolution(gamma, hamiltonian, N=1)
