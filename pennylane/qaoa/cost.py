@@ -127,12 +127,9 @@ def min_vertex_cover(graph):
     coeffs = []
     terms = []
 
-    #2ZZ - Z - Z
-
-    maxcut_h = maxcut(graph)[0]
-
-    coeffs.extend([len(graph.nodes) * c for c in maxcut_h.coeffs])
-    terms.extend(maxcut_h.ops)
+    for e in graph.edges:
+        coeffs.extend([1, 1, 1])
+        terms.extend([qml.PauliZ(e[0]) @ qml.PauliZ(e[1]), qml.PauliZ(e[0]), qml.PauliZ(e[1])])
 
     for i in graph.nodes:
         coeffs.append(-1)

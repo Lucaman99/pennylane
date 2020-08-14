@@ -1,6 +1,7 @@
 import pennylane as qml
 from pennylane import qaoa
 from networkx import Graph
+from matplotlib import pyplot as plt
 
 # Defines the wires and the graph on which MaxCut is being performed
 
@@ -9,7 +10,7 @@ graph = Graph([(0, 1), (1, 2), (2, 0)])
 
 # Defines the QAOA cost and mixer Hamiltonians
 
-cost_h, mixer_h = qaoa.maxcut(graph)
+cost_h, mixer_h = qaoa.min_vertex_cover(graph)
 
 # Defines a layer of the QAOA ansatz, from the cost and mixer Hamiltonians
 
@@ -31,4 +32,23 @@ def circuit(params, **kwargs):
 dev = qml.device('default.qubit', wires=len(wires))
 cost_function = qml.VQECost(circuit, cost_h, dev)
 
-print(cost_function([[1, 1], [1, 1]]))
+# Creates the optimizer
+
+optimizer = qml.GradientDescentOptimizer()
+steps = 30
+params = [[0.5, 0.5], [0.5, 0.5]]
+
+for i in range(30):
+    params = optimizer.step(cost_function, params)
+    print(i)
+
+@qml.qnode(dev)
+def dist_circuit(gamma, alpha):
+    circuit([gamma, alpha])
+    return qml.probs(wires=wires)
+
+output = dist_circuit(params[0], params[1])
+
+plt.bar(range(2**3), output)
+plt.show()
+
