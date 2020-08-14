@@ -128,14 +128,14 @@ def min_vertex_cover(graph):
     terms = []
 
     for e in graph.edges:
-        coeffs.extend([2, 2, 2])
+        coeffs.extend([4, 4, 4])
         terms.extend([qml.PauliZ(e[0]) @ qml.PauliZ(e[1]), qml.PauliZ(e[0]), qml.PauliZ(e[1])])
 
-    #for i in graph.nodes:
-    #    coeffs.append(-1)
-    #    terms.append(qml.PauliZ(i))
+    for i in graph.nodes:
+        coeffs.append(-1)
+        terms.append(qml.PauliZ(i))
 
-    return (qml.Hamiltonian(coeffs, terms), qaoa.xy_mixer(graph))
+    return (qml.Hamiltonian(coeffs, terms), qaoa.x_mixer(graph))
 
 
 def maxclique(graph):
@@ -161,14 +161,14 @@ def maxclique(graph):
     terms = []
 
     for e in nx.complement(graph).edges:
-        coeffs.extend([0.5*len(graph.nodes), -0.5*len(graph.nodes), -0.5*len(graph.nodes)])
+        coeffs.extend([len(graph.nodes), -1*len(graph.nodes), -1*len(graph.nodes)])
         terms.extend([qml.PauliZ(e[0]) @ qml.PauliZ(e[1]), qml.PauliZ(e[0]), qml.PauliZ(e[1])])
 
     for i in graph.nodes:
-        coeffs.append(1)
+        coeffs.append(0.5)
         terms.append(qml.PauliZ(i))
 
-    return (qml.Hamiltonian(coeffs, terms), qaoa.xy_mixer(graph))
+    return (qml.Hamiltonian(coeffs, terms), qaoa.x_mixer(graph))
 
 
 def max_independent_set(graph):
