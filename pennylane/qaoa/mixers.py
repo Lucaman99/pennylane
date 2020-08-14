@@ -113,8 +113,12 @@ def xy_mixer(graph):
 
     return qml.Hamiltonian(coeffs, obs)
 
-"""
+'''
 def bit_flip_mixer(graph, ancilla):
 
     for v in graph.nodes:
-"""
+
+        neighbours = graph.neighbours(v)
+        qml.MultiCX(wires=neighbours+[ancilla])
+        qml.CRX()
+'''
