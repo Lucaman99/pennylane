@@ -127,6 +127,8 @@ def min_vertex_cover(graph):
     coeffs = []
     terms = []
 
+    #2ZZ - Z - Z
+
     maxcut_h = maxcut(graph)[0]
 
     coeffs.extend([len(graph.nodes) * c for c in maxcut_h.coeffs])
@@ -137,3 +139,18 @@ def min_vertex_cover(graph):
         terms.append(qml.PauliZ(i))
 
     return (qml.Hamiltonian(coeffs, terms), qaoa.x_mixer(graph.nodes))
+
+
+def maxclique(graph):
+    r"""Returns the QAOA cost Hamiltonian and the reccommended mixer corresponding to the MaxClique problem,
+    for a given graph.
+
+    The goal of MaxClique is to find the largest `clique <https://en.wikipedia.org/wiki/Clique_(graph_theory)>`__ of a
+    graph (the largest subgraph with all nodes sharing an edge).
+
+    The MaxClique cost Hamiltonian is defined as:
+
+    .. math:: H_C \ = \ \frac{1}{2} \frac{(i, j) \in E(\bar{G})} (Z_i Z_j \ - \ Z_i \ - \ Z_j) \ + \ \displaystyle\sum_{j} Z_i
+
+
+    """
