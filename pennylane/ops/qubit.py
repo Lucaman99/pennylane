@@ -486,6 +486,28 @@ class Toffoli(Operation):
         return cls.matrix
 
 
+class MultiCX(Operation):
+
+    num_params = 0
+    num_wires = AnyWires
+    par_domain = None
+
+    @classmethod
+    def _matrix(cls, n):
+        """Matrix representation of a MultiCX gate."""
+        mat = np.zeros((2**n, 2**n))
+        for i in range(0, 2**n - 2):
+            mat[i, i] = 1
+        mat[2**n - 2, 2**n - 1] = 1
+        mat[2**n - 1, 2**n - 2] = 1
+
+        return mat
+
+    @property
+    def matrix(self):
+        return self._matrix(len(self.wires))
+
+
 class RX(Operation):
     r"""RX(phi, wires)
     The single qubit X rotation
@@ -1564,6 +1586,7 @@ ops = {
     "SWAP",
     "CSWAP",
     "Toffoli",
+    "MultiCX",
     "RX",
     "RY",
     "RZ",

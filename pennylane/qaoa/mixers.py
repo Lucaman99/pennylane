@@ -112,3 +112,9 @@ def xy_mixer(graph):
         obs.append(qml.PauliY(node1) @ qml.PauliY(node2))
 
     return qml.Hamiltonian(coeffs, obs)
+
+"""
+def bit_flip_mixer(graph, ancilla):
+
+    for v in graph.nodes:
+"""

@@ -161,19 +161,23 @@ def maxclique(graph):
     terms = []
 
     for e in nx.complement(graph).edges:
-        coeffs.extend([len(graph.nodes), -1*len(graph.nodes), -1*len(graph.nodes)])
+        coeffs.extend([0.5*len(graph.nodes), -0.5*len(graph.nodes), -0.5*len(graph.nodes)])
         terms.extend([qml.PauliZ(e[0]) @ qml.PauliZ(e[1]), qml.PauliZ(e[0]), qml.PauliZ(e[1])])
 
     for i in graph.nodes:
-        coeffs.append(0.5)
+        coeffs.append(10)
         terms.append(qml.PauliZ(i))
 
     return (qml.Hamiltonian(coeffs, terms), qaoa.x_mixer(graph))
 
 
-def max_independent_set(graph):
-    r"""Returns the QAOA cost Hamiltonian corresponding to the Max Independent Set problem
+def max_independent_set(graph, ancilla):
+    r"""Returns the QAOA cost Hamiltonian and the reccommended mixer corresponding to the MaxIndependentSet problem,
+    for a given graph.
 
 
     """
+
+
+
 
