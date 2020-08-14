@@ -22,20 +22,21 @@ def qaoa_layer(gamma, alpha):
 
 # Repeatedly applies layers of the QAOA ansatz
 
-def circuit(params, **kwargs):
+def circuit(params, **k):
     
     params = [params[0:2], params[2:4]]
 
     for w in wires:
         qml.Hadamard(wires=w)
-
-    qml.layer(qaoa_layer, 2, params[0], params[1])
+    
+    print(k.keys())
+    qml.layer(qaoa_layer, depth, params[0], params[1])
     print("Done")
 
 # Defines the device and the QAOA cost function
 
 dev = qml.device('qulacs.simulator', wires=len(wires))
-cost_function = qml.VQECost(circuit, cost_h, dev)
+cost_function = qml.VQECost(circuit, cost_h, dev, depth=2)
 
 # Creates the optimizer
 
