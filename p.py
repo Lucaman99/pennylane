@@ -36,7 +36,7 @@ cost_function = qml.VQECost(circuit, cost_h, dev)
 
 optimizer = qml.GradientDescentOptimizer()
 steps = 30
-params = [[0.5, 0.5], [0.5, 0.5]]
+params = [[0.7, 0.5], [1.5, -0.4]]
 
 for i in range(30):
     params = optimizer.step(cost_function, params)
