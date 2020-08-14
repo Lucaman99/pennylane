@@ -128,14 +128,14 @@ def min_vertex_cover(graph):
     terms = []
 
     for e in graph.edges:
-        coeffs.extend([1, 1, 1])
+        coeffs.extend([2, 2, 2])
         terms.extend([qml.PauliZ(e[0]) @ qml.PauliZ(e[1]), qml.PauliZ(e[0]), qml.PauliZ(e[1])])
 
-    for i in graph.nodes:
-        coeffs.append(-1)
-        terms.append(qml.PauliZ(i))
+    #for i in graph.nodes:
+    #    coeffs.append(-1)
+    #    terms.append(qml.PauliZ(i))
 
-    return (qml.Hamiltonian(coeffs, terms), qaoa.x_mixer(graph.nodes))
+    return (qml.Hamiltonian(coeffs, terms), qaoa.xy_mixer(graph))
 
 
 def maxclique(graph):
@@ -151,3 +151,29 @@ def maxclique(graph):
 
 
     """
+
+    if not isinstance(graph, nx.Graph):
+        raise ValueError(
+            "Input graph must be a nx.Graph object, got {}".format(type(graph).__name__)
+        )
+
+    coeffs = []
+    terms = []
+
+    for e in nx.complement(graph).edges:
+        coeffs.extend([0.5*len(graph.nodes), -0.5*len(graph.nodes), -0.5*len(graph.nodes)])
+        terms.extend([qml.PauliZ(e[0]) @ qml.PauliZ(e[1]), qml.PauliZ(e[0]), qml.PauliZ(e[1])])
+
+    for i in graph.nodes:
+        coeffs.append(1)
+        terms.append(qml.PauliZ(i))
+
+    return (qml.Hamiltonian(coeffs, terms), qaoa.xy_mixer(graph))
+
+
+def max_independent_set(graph):
+    r"""Returns the QAOA cost Hamiltonian corresponding to the Max Independent Set problem
+
+
+    """
+
