@@ -20,7 +20,7 @@ def qaoa_layer(gamma, alpha):
 
 # Repeatedly applies layers of the QAOA ansatz
 
-def circuit(params, **kwargs):
+def circuit(params):
 
     for w in wires:
         qml.Hadamard(wires=w)
