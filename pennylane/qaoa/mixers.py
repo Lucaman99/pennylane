@@ -17,7 +17,8 @@ Methods for constructing QAOA mixer Hamiltonians.
 import networkx as nx
 import pennylane as qml
 from pennylane.wires import Wires
-
+import itertools
+from functools import reduce
 
 def x_mixer(wires):
     r"""Creates a basic Pauli-X mixer Hamiltonian.
@@ -113,12 +114,23 @@ def xy_mixer(graph):
 
     return qml.Hamiltonian(coeffs, obs)
 
-'''
-def bit_flip_mixer(graph, ancilla):
 
-    for v in graph.nodes:
+def bit_flip_mixer(graph, neighbour_state):
 
-        neighbours = graph.neighbours(v)
-        qml.MultiCX(wires=neighbours+[ancilla])
-        qml.CRX()
-'''
+    sign = 1 if neighbour_state == 0 else -1
+
+    coeffs = []
+    terms = []
+
+    for i in graph.nodes:
+
+        n_terms = [[qml.PauliX(i)]] + [[qml.Identity(n), qml.PauliZ(n)] for n in graph.neighbors(i)]
+        n_coeffs = [[1, sign] for n in graph.neighbors(i)]
+
+        final_terms = [qml.operation.Tensor(*list(m)) for m in itertools.product(*n_terms)]
+        final_coeffs = [reduce(lambda x, y: x * y, list(m), 1) for m in itertools.product(*n_coeffs)]
+
+        coeffs.extend(final_coeffs)
+        terms.extend(final_terms)
+
+    return qml.Hamiltonian(coeffs, terms)

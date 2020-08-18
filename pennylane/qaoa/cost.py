@@ -20,6 +20,59 @@ import networkx as nx
 import pennylane as qml
 from pennylane import qaoa
 
+# Hamiltonian components
+
+def pauli_driver(wires, state):
+
+    if state == 0:
+        coeffs = [-1 for _ in wires]
+    elif state == 1:
+        coeffs = [1 for _ in wires]
+    else:
+        raise ValueError("'state' argument must be either 0 or 1, got {}".format(state))
+
+    ops = [qml.PauliZ(w) for w in wires]
+    return qml.Hamiltonian(coeffs, ops)
+
+def check_edges(graph, reward):
+
+    reward = list(set(reward) - {'01'})
+    sign = -1
+
+    if len(reward) == 2:
+        reward = str({'00', '10', '11'} - set(reward))
+        sign = 1
+
+    if reward == '00':
+
+        coeffs = []
+        ops = []
+
+        for e in graph.edges:
+            coeffs.extend([0.5*sign, 0.5*sign, 0.5*sign])
+            ops.extend([qml.PauliZ(e[0]) @ qml.PauliZ(e[1]), qml.PauliZ(e[0]), qml.PauliZ(e[1])])
+
+    if reward == '10':
+
+        coeffs = []
+        ops = []
+
+        for e in graph.edges:
+            coeffs.append(-1*sign)
+            ops.append(qml.PauliZ(e[0]) @ qml.PauliZ(e[1]))
+
+    if reward == '11':
+
+        coeffs = []
+        ops = []
+
+        for e in edges:
+            coeffs.extend([0.5*sign, -0.5*sign, -0.5*sign])
+            ops.extend([qml.PauliZ(e[0]) @ qml.PauliZ(e[1]), qml.PauliZ(e[0]), qml.PauliZ(e[1])])
+
+    return qml.Hamiltonian(coeffs, ops)
+
+# Optimization problems
 
 def maxcut(graph):
     r"""Returns the QAOA cost Hamiltonian and the recommended mixer corresponding to the
@@ -80,8 +133,20 @@ def maxcut(graph):
 
     return (qml.Hamiltonian(coeffs, obs), qaoa.x_mixer(graph.nodes))
 
+def max_independent_set(graph, constrained=True):
+    r"""Returns the QAOA cost Hamiltonian and the reccommended mixer corresponding to the MaxIndependentSet problem,
+    for a given graph.
 
-def min_vertex_cover(graph):
+
+    """
+
+    if constrained:
+        return (_pauli_driver(graph.nodes, 1), qaoa.bit_flip_mixer(graph, 0))
+
+    else:
+        pass
+
+def min_vertex_cover(graph, constrained=True):
     r"""Returns the QAOA cost Hamiltonian and the recommended mixer corresponding to the Minimum Vertex Cover problem,
     for a given graph.
 
@@ -124,21 +189,26 @@ def min_vertex_cover(graph):
             "Input graph must be a nx.Graph object, got {}".format(type(graph).__name__)
         )
 
-    coeffs = []
-    terms = []
+    if constrained:
+        return (_pauli_driver(graph.nodes, 0), qaoa.bit_flip_mixer(graph, 1))
 
-    for e in graph.edges:
-        coeffs.extend([4, 4, 4])
-        terms.extend([qml.PauliZ(e[0]) @ qml.PauliZ(e[1]), qml.PauliZ(e[0]), qml.PauliZ(e[1])])
+    else:
 
-    for i in graph.nodes:
-        coeffs.append(-1)
-        terms.append(qml.PauliZ(i))
+        coeffs = []
+        terms = []
 
-    return (qml.Hamiltonian(coeffs, terms), qaoa.x_mixer(graph))
+        for e in graph.edges:
+            coeffs.extend([0.5, 0.5, 0.5])
+            terms.extend([qml.PauliZ(e[0]) @ qml.PauliZ(e[1]), qml.PauliZ(e[0]), qml.PauliZ(e[1])])
+
+        for i in graph.nodes:
+            coeffs.append(-0.5)
+            terms.append(qml.PauliZ(i))
+
+        return (qml.Hamiltonian(coeffs, terms), qaoa.x_mixer(graph))
 
 
-def maxclique(graph):
+def maxclique(graph, constrained=True):
     r"""Returns the QAOA cost Hamiltonian and the reccommended mixer corresponding to the MaxClique problem,
     for a given graph.
 
@@ -157,27 +227,20 @@ def maxclique(graph):
             "Input graph must be a nx.Graph object, got {}".format(type(graph).__name__)
         )
 
-    coeffs = []
-    terms = []
+    if constrained:
+        return (pauli_driver(graph.nodes, 1), qaoa.bit_flip_mixer(nx.complement(graph), 0))
 
-    for e in nx.complement(graph).edges:
-        coeffs.extend([0.5*len(graph.nodes), -0.5*len(graph.nodes), -0.5*len(graph.nodes)])
-        terms.extend([qml.PauliZ(e[0]) @ qml.PauliZ(e[1]), qml.PauliZ(e[0]), qml.PauliZ(e[1])])
+    else:
 
-    for i in graph.nodes:
-        coeffs.append(10)
-        terms.append(qml.PauliZ(i))
+        coeffs = []
+        terms = []
 
-    return (qml.Hamiltonian(coeffs, terms), qaoa.x_mixer(graph))
+        for e in nx.complement(graph).edges:
+            coeffs.extend([0.5*len(graph.nodes), -0.5*len(graph.nodes), -0.5*len(graph.nodes)])
+            terms.extend([qml.PauliZ(e[0]) @ qml.PauliZ(e[1]), qml.PauliZ(e[0]), qml.PauliZ(e[1])])
 
+        for i in graph.nodes:
+            coeffs.append(10)
+            terms.append(qml.PauliZ(i))
 
-def max_independent_set(graph, ancilla):
-    r"""Returns the QAOA cost Hamiltonian and the reccommended mixer corresponding to the MaxIndependentSet problem,
-    for a given graph.
-
-
-    """
-
-
-
-
+        return (qml.Hamiltonian(coeffs, terms), qaoa.x_mixer(graph))
