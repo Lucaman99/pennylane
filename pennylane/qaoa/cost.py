@@ -20,6 +20,7 @@ import networkx as nx
 import pennylane as qml
 from pennylane import qaoa
 
+########################
 # Hamiltonian components
 
 def pauli_driver(wires, state):
@@ -34,44 +35,41 @@ def pauli_driver(wires, state):
     ops = [qml.PauliZ(w) for w in wires]
     return qml.Hamiltonian(coeffs, ops)
 
-def check_edges(graph, reward):
+def edge_driver(graph, reward):
+
+    if not isinstance(graph, nx.Graph):
+        raise ValueError(
+            "Input graph must be a nx.Graph object, got {}".format(type(graph).__name__)
+        )
 
     reward = list(set(reward) - {'01'})
     sign = -1
 
     if len(reward) == 2:
-        reward = str({'00', '10', '11'} - set(reward))
+        reward = list({'00', '10', '11'} - set(reward))[0]
         sign = 1
 
+    coeffs = []
+    ops = []
+
     if reward == '00':
-
-        coeffs = []
-        ops = []
-
         for e in graph.edges:
             coeffs.extend([0.5*sign, 0.5*sign, 0.5*sign])
             ops.extend([qml.PauliZ(e[0]) @ qml.PauliZ(e[1]), qml.PauliZ(e[0]), qml.PauliZ(e[1])])
 
     if reward == '10':
-
-        coeffs = []
-        ops = []
-
         for e in graph.edges:
             coeffs.append(-1*sign)
             ops.append(qml.PauliZ(e[0]) @ qml.PauliZ(e[1]))
 
     if reward == '11':
-
-        coeffs = []
-        ops = []
-
-        for e in edges:
+        for e in graph.edges:
             coeffs.extend([0.5*sign, -0.5*sign, -0.5*sign])
             ops.extend([qml.PauliZ(e[0]) @ qml.PauliZ(e[1]), qml.PauliZ(e[0]), qml.PauliZ(e[1])])
 
     return qml.Hamiltonian(coeffs, ops)
 
+#######################
 # Optimization problems
 
 def maxcut(graph):
@@ -113,38 +111,22 @@ def maxcut(graph):
     (1.0) [X0] + (1.0) [X1] + (1.0) [X2]
     """
 
-    if not isinstance(graph, nx.Graph):
-        raise ValueError(
-            "Input graph must be a nx.Graph object, got {}".format(type(graph).__name__)
-        )
-
-    edges = graph.edges
-
-    coeffs = []
-    obs = []
-
-    for node1, node2 in edges:
-
-        obs.append(qml.Identity(node1) @ qml.Identity(node2))
-        coeffs.append(-0.5)
-
-        obs.append(qml.PauliZ(node1) @ qml.PauliZ(node2))
-        coeffs.append(0.5)
-
-    return (qml.Hamiltonian(coeffs, obs), qaoa.x_mixer(graph.nodes))
+    return (edge_driver(graph, ['10', '01']), qaoa.x_mixer(graph.nodes))
 
 def max_independent_set(graph, constrained=True):
-    r"""Returns the QAOA cost Hamiltonian and the reccommended mixer corresponding to the MaxIndependentSet problem,
+    r"""Returns the QAOA cost Hamiltonian and the recommended mixer corresponding to the MaxIndependentSet problem,
     for a given graph.
 
 
     """
 
     if constrained:
-        return (_pauli_driver(graph.nodes, 1), qaoa.bit_flip_mixer(graph, 0))
-
+        return (pauli_driver(graph.nodes, 1), qaoa.bit_flip_mixer(graph, 0))
     else:
-        pass
+        cost_h = edge_driver(graph, ['10', '01', '00']) + pauli_driver(graph.nodes, 1)
+        mixer_h = qaoa.x_mixer(graph.nodes)
+
+        return (cost_h, mixer_h)
 
 def min_vertex_cover(graph, constrained=True):
     r"""Returns the QAOA cost Hamiltonian and the recommended mixer corresponding to the Minimum Vertex Cover problem,
@@ -184,29 +166,13 @@ def min_vertex_cover(graph, constrained=True):
     (1.0) [X0] + (1.0) [X1] + (1.0) [X2]
     """
 
-    if not isinstance(graph, nx.Graph):
-        raise ValueError(
-            "Input graph must be a nx.Graph object, got {}".format(type(graph).__name__)
-        )
-
     if constrained:
-        return (_pauli_driver(graph.nodes, 0), qaoa.bit_flip_mixer(graph, 1))
-
+        return (pauli_driver(graph.nodes, 0), qaoa.bit_flip_mixer(graph, 1))
     else:
+        cost_h = edge_driver(graph, ['11', '10', '01']) + 0.5*pauli_driver(graph.nodes, 0)
+        mixer_h = qaoa.x_mixer(graph.nodes)
 
-        coeffs = []
-        terms = []
-
-        for e in graph.edges:
-            coeffs.extend([0.5, 0.5, 0.5])
-            terms.extend([qml.PauliZ(e[0]) @ qml.PauliZ(e[1]), qml.PauliZ(e[0]), qml.PauliZ(e[1])])
-
-        for i in graph.nodes:
-            coeffs.append(-0.5)
-            terms.append(qml.PauliZ(i))
-
-        return (qml.Hamiltonian(coeffs, terms), qaoa.x_mixer(graph))
-
+        return (cost_h, mixer_h)
 
 def maxclique(graph, constrained=True):
     r"""Returns the QAOA cost Hamiltonian and the reccommended mixer corresponding to the MaxClique problem,
@@ -222,25 +188,10 @@ def maxclique(graph, constrained=True):
 
     """
 
-    if not isinstance(graph, nx.Graph):
-        raise ValueError(
-            "Input graph must be a nx.Graph object, got {}".format(type(graph).__name__)
-        )
-
     if constrained:
         return (pauli_driver(graph.nodes, 1), qaoa.bit_flip_mixer(nx.complement(graph), 0))
-
     else:
+        cost_h = edge_driver(nx.complement(graph), ['10', '01', '00']) + 0.5*pauli_driver(graph.nodes, 1)
+        mixer_h = qaoa.x_mixer(graph.nodes)
 
-        coeffs = []
-        terms = []
-
-        for e in nx.complement(graph).edges:
-            coeffs.extend([0.5*len(graph.nodes), -0.5*len(graph.nodes), -0.5*len(graph.nodes)])
-            terms.extend([qml.PauliZ(e[0]) @ qml.PauliZ(e[1]), qml.PauliZ(e[0]), qml.PauliZ(e[1])])
-
-        for i in graph.nodes:
-            coeffs.append(10)
-            terms.append(qml.PauliZ(i))
-
-        return (qml.Hamiltonian(coeffs, terms), qaoa.x_mixer(graph))
+        return (cost_h, mixer_h)

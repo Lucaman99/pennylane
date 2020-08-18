@@ -116,6 +116,8 @@ def xy_mixer(graph):
 
 
 def bit_flip_mixer(graph, neighbour_state):
+    r"""Creates a bit-flip mixer Hamiltonian
+    """
 
     sign = 1 if neighbour_state == 0 else -1
 
