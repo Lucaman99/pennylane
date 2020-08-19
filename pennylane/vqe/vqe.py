@@ -153,7 +153,15 @@ class Hamiltonian:
                 ops.append(op)
                 op_attributes.append(attr)
 
-        return qml.Hamiltonian(coeffs, ops)
+        new_coeffs = []
+        new_ops = []
+
+        for i, c in enumerate(coeffs):
+            if not np.allclose([c], [0]):
+                new_coeffs.append(c)
+                new_ops.append(ops[i])
+
+        return qml.Hamiltonian(new_coeffs, new_ops)
 
     def __mul__(self, a):
 

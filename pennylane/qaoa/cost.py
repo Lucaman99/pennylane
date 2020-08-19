@@ -23,8 +23,31 @@ from pennylane import qaoa
 ########################
 # Hamiltonian components
 
-def pauli_driver(wires, state):
+def pauli_driver(wires, n):
+    r"""Returns the Pauli driver cost Hamiltonian component.
 
+    The Hamiltonian is defined as:
+
+    .. math:: H \ = \ (-1)^{n + 1} \displaystyle\sum_{i} Z_i
+
+    where :math:`Z_i` is the Pauli-Z operator acting on the
+    :math:`i`-th wire and :math:n \ \in \ \{0, \ 1\}`. This Hamiltonian is often used as a term when
+    constructing larger QAOA cost Hamiltonians.
+
+    Args:
+        wires (Iterable or Wires): The wires on which the returned Hamiltonian acts
+        n (int): Either :math:`0` or :math:`1`.
+
+    Returns:
+        .Hamiltonian
+
+    **Example**
+
+    >>> wires = range(3)
+    >>> hamiltonian = qaoa.pauli_driver(wires, 1)
+    >>> print(hamiltonian)
+    (1.0) [Z0] + (1.0) [Z1] + (1.0) [Z2]
+    """
     if state == 0:
         coeffs = [-1 for _ in wires]
     elif state == 1:
@@ -36,7 +59,19 @@ def pauli_driver(wires, state):
     return qml.Hamiltonian(coeffs, ops)
 
 def edge_driver(graph, reward):
+    r"""Returns the edge driver cost Hamiltonian component.
 
+    Given some graph, :math:`G`, the ``edge_driver`` method will return a Hamiltonian that "rewards"
+    bitstrings encoding graph colourings of :math:`G` (assigns them a lower
+    energy) with edges that end in nodes with colourings supplied in ``reward``.
+
+    Args:
+         graph (nx.Graph): The graph on which the Hamiltonian is defined
+         reward (list[str]): The list of two-bit bitstrings that are rewarded by the Hamiltonian
+
+    Returns:
+        .Hamiltonian
+    """
     if not isinstance(graph, nx.Graph):
         raise ValueError(
             "Input graph must be a nx.Graph object, got {}".format(type(graph).__name__)
@@ -54,7 +89,7 @@ def edge_driver(graph, reward):
 
     if reward == '00':
         for e in graph.edges:
-            coeffs.extend([0.5*sign, 0.5*sign, 0.5*sign])
+            coeffs.extend([sign, sign, sign])
             ops.extend([qml.PauliZ(e[0]) @ qml.PauliZ(e[1]), qml.PauliZ(e[0]), qml.PauliZ(e[1])])
 
     if reward == '10':
@@ -64,7 +99,7 @@ def edge_driver(graph, reward):
 
     if reward == '11':
         for e in graph.edges:
-            coeffs.extend([0.5*sign, -0.5*sign, -0.5*sign])
+            coeffs.extend([sign, -1*sign, -1*sign])
             ops.extend([qml.PauliZ(e[0]) @ qml.PauliZ(e[1]), qml.PauliZ(e[0]), qml.PauliZ(e[1])])
 
     return qml.Hamiltonian(coeffs, ops)
@@ -117,7 +152,40 @@ def max_independent_set(graph, constrained=True):
     r"""Returns the QAOA cost Hamiltonian and the recommended mixer corresponding to the MaxIndependentSet problem,
     for a given graph.
 
+    **Constrained**
 
+    .. note::
+
+        This method of constrained QAOA was introduced by Hadfield, Wang, Gorman, Rieffel, Venturelli, and Biswas
+        in `[arXiv:1709.03489] <https://arxiv.org/abs/1709.03489>`__.
+
+    The constrained MaxIndependentSet cost Hamiltonian is defined as:
+
+    .. math:: H_C \ = \ \displaystyle\sum_{v \in V(G)} Z_{v}
+
+    where :math:`V(G)` is the set of vertices of the input graph, and :math:`Z_i` is the Pauli-Z operator applied to the :math:`i`-th
+    vertex.
+
+    The returned mixer Hamiltonian is `~qaoa.bit_flip_mixer` applied to :math:`G`.
+
+    .. note::
+
+        **Recommended initialization circuit:**
+            Each wire in the :math:`|0\rangle` state
+
+    **Unconstrained**
+
+    .. note::
+
+        **Recommended initialization circuit:**
+            Even superposition over all basis states
+
+    Args:
+        graph (nx.Graph): a graph defining the pairs of wires on which each term of the Hamiltonian acts
+        constrained (bool): specifies the variant of QAOA that is performed (constrained or unconstrained)
+
+    Returns:
+        (.Hamiltonian, .Hamiltonian):
     """
 
     if constrained:
@@ -136,9 +204,32 @@ def min_vertex_cover(graph, constrained=True):
     `vertex cover <https://en.wikipedia.org/wiki/Vertex_cover>`__ of a graph (a collection of nodes such that
     every edge in the graph has one of the nodes as an endpoint).
 
+    **Constrained**
+
+    .. note::
+
+        This method of constrained QAOA was introduced by Hadfield, Wang, Gorman, Rieffel, Venturelli, and Biswas
+        in `[arXiv:1709.03489] <https://arxiv.org/abs/1709.03489>`__.
+
+    The constrained MinVertexCover cost Hamiltonian is defined as:
+
+    .. math:: H_C \ = \ - \displaystyle\sum_{v \in V(G)} Z_{v}
+
+    where :math:`V(G)` is the set of vertices of the input graph, and :math:`Z_i` is the Pauli-Z operator applied to the :math:`i`-th
+    vertex.
+
+    The returned mixer Hamiltonian is `~qaoa.bit_flip_mixer` applied to :math:`G`.
+
+    .. note::
+
+        **Recommended initialization circuit:**
+            Each wire in the :math:`|1\rangle` state
+
+    **Unconstrained**
+
     The Minimum Vertex Cover cost Hamiltonian is defined as:
 
-    .. math:: H_C \ = \ \frac{|V(G)|}{2} \displaystyle\sum_{(i, j) \in E(G)} \big(Z_i Z_j \ - \ \mathbb{I} \big) \ - \ \displaystyle\sum_{j} Z_j
+    .. math:: H_C \ = \ \frac{1}{2} \displaystyle\sum_{(i, j) \in E(G)} \big(Z_i Z_j \ - \ \mathbb{I} \big) \ - \ \displaystyle\sum_{j} Z_j
 
     where :math:`G` is a graph, :math:`\mathbb{I}` is the identity, and :math:`Z_i` and :math:`Z_j` are
     the Pauli-Z operators on the :math:`i`-th and :math:`j`-th wire respectively.
@@ -152,7 +243,7 @@ def min_vertex_cover(graph, constrained=True):
 
     Args:
         graph (nx.Graph): a graph defining the pairs of wires on which each term of the Hamiltonian acts
-
+        constrained (bool): specifies the variant of QAOA that is performed (constrained or unconstrained)
     Returns:
         (.Hamiltonian, .Hamiltonian):
 
@@ -169,7 +260,7 @@ def min_vertex_cover(graph, constrained=True):
     if constrained:
         return (pauli_driver(graph.nodes, 0), qaoa.bit_flip_mixer(graph, 1))
     else:
-        cost_h = edge_driver(graph, ['11', '10', '01']) + 0.5*pauli_driver(graph.nodes, 0)
+        cost_h = edge_driver(graph, ['11', '10', '01']) + pauli_driver(graph.nodes, 0)
         mixer_h = qaoa.x_mixer(graph.nodes)
 
         return (cost_h, mixer_h)
@@ -181,17 +272,50 @@ def maxclique(graph, constrained=True):
     The goal of MaxClique is to find the largest `clique <https://en.wikipedia.org/wiki/Clique_(graph_theory)>`__ of a
     graph (the largest subgraph with all nodes sharing an edge).
 
-    The MaxClique cost Hamiltonian is defined as:
+    This method can return two variations of cost/mixer Hamiltonians pairs, the first performing constrained optimization
+    and the second performing unconstrained optimization:
 
-    .. math:: H_C \ = \ \frac{1}{2} \frac{(i, j) \in E(\bar{G})} (Z_i Z_j \ - \ Z_i \ - \ Z_j) \ + \ \displaystyle\sum_{j} Z_i
+    **Constrained**
 
+    .. note::
+
+        This method of constrained QAOA was introduced by Hadfield, Wang, Gorman, Rieffel, Venturelli, and Biswas
+        in `[arXiv:1709.03489] <https://arxiv.org/abs/1709.03489>`__.
+
+    The constrained MaxClique cost Hamiltonian is defined as:
+
+    .. math:: H_C \ = \ \displaystyle\sum_{v \in V(G)} Z_{v}
+
+    where :math:`V(G)` is the set of vertices of the input graph, and :math:`Z_i` is the Pauli-Z operator applied to the :math:`i`-th
+    vertex.
+
+    The returned mixer Hamiltonian is `~qaoa.bit_flip_mixer` applied to :math:`\bar{G}` (the complement of the graph).
+
+    .. note::
+
+        **Recommended initialization circuit:**
+            Each wire in the :math:`|0\rangle` state
+
+    **Unconstrained**
+
+    The unconstrained MaxClique cost Hamiltonian is defined as:
+
+    .. math:: H_C \ = \ \frac{1}{2} \frac{(i, j) \in E(\bar{G})} (Z_i Z_j \ - \ Z_i \ - \ Z_j) \ + \ \displaystyle\sum_{i \in V(G)} Z_i
+
+    where :math:`V(G)` is the vertices of the input graph :math:`G`, :math:`E(\bar{G})` is the edges of the
+    complement of :math:`G` and :math:`Z_i` is the Pauli-Z operator applied to the :math:`i`-th vertex.
+
+    .. note::
+
+        **Recommended initialization circuit:**
+            Even superposition over all basis states
 
     """
 
     if constrained:
         return (pauli_driver(graph.nodes, 1), qaoa.bit_flip_mixer(nx.complement(graph), 0))
     else:
-        cost_h = edge_driver(nx.complement(graph), ['10', '01', '00']) + 0.5*pauli_driver(graph.nodes, 1)
+        cost_h = edge_driver(nx.complement(graph), ['10', '01', '00']) + pauli_driver(graph.nodes, 1)
         mixer_h = qaoa.x_mixer(graph.nodes)
 
         return (cost_h, mixer_h)
