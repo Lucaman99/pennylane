@@ -122,15 +122,13 @@ class Hamiltonian:
 
     def __matmul__(self, H):
 
-        coeffs1 = self.coeffs
-        terms1 = self.ops
+        coeffs1 = self.coeffs.copy()
+        terms1 = self.ops.copy()
 
         coeffs2 = H.coeffs
         terms2 = H.ops
 
-        # Assumes that the Hamiltonians are acting on disjoint sets of wires
-
-        coeffs = [i[0]*i[1] for i in itertools.product(coeffs1, coeffs2)]
+        coeffs = [i[0] * i[1] for i in itertools.product(coeffs1, coeffs2)]
         term_list = itertools.product(terms1, terms2)
 
         terms = [qml.operation.Tensor(i[0], i[1]) for i in term_list]
@@ -139,22 +137,36 @@ class Hamiltonian:
 
     def __add__(self, H):
 
-        coeffs = self.coeffs
-        ops = self.ops
+        coeffs = self.coeffs.copy()
+        ops = self.ops.copy()
 
-        op_attributes = [set(zip((i.name if isinstance(i.name, list) else [i.name]), i.wires)) for i in ops]
+        op_attributes = []
 
-        for coeff, op in zip(H.coeffs, H.ops):
-            attr = set(zip((op.name if isinstance(op.name, list) else [op.name]), op.wires))
-            if attr in op_attributes:
-                coeffs[op_attributes.index(attr)] += coeff
-            else:
-                coeffs.append(coeff)
-                ops.append(op)
-                op_attributes.append(attr)
+        for op in ops:
+            name = op.name if isinstance(op.name, list) else [op.name]
+
+            if "Hermitian" not in name:
+                op_attributes.append(set(zip(name, op.wires)))
 
         new_coeffs = []
         new_ops = []
+
+        for coeff, op in zip(H.coeffs, H.ops):
+            name = op.name if isinstance(op.name, list) else [op.name]
+
+            if "Hermitian" in name:
+                new_coeffs.append(coeff)
+                new_ops.append(op)
+
+            else:
+                attr = set(zip(name, op.wires))
+
+                if attr in op_attributes:
+                    coeffs[op_attributes.index(attr)] += coeff
+                else:
+                    coeffs.append(coeff)
+                    ops.append(op)
+                    op_attributes.append(attr)
 
         for i, c in enumerate(coeffs):
             if not np.allclose([c], [0]):
@@ -164,11 +176,13 @@ class Hamiltonian:
         return qml.Hamiltonian(new_coeffs, new_ops)
 
     def __mul__(self, a):
-
-        coeffs = [a*c for c in self.coeffs]
-        return qml.Hamiltonian(coeffs, self.ops)
+        coeffs = [a * c for c in self.coeffs.copy()]
+        return qml.Hamiltonian(coeffs, self.ops.copy())
 
     __rmul__ = __mul__
+
+    def __sub__(self, H):
+        return self.__add__(H.__mul__(-1))
 
 
 class VQECost:
