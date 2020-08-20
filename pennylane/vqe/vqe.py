@@ -16,10 +16,10 @@ This submodule contains functionality for running Variational Quantum Eigensolve
 computations using PennyLane.
 """
 # pylint: disable=too-many-arguments, too-few-public-methods
+import itertools
 import numpy as np
 import pennylane as qml
 from pennylane.operation import Observable, Tensor
-
 
 OBS_MAP = {"PauliX": "X", "PauliY": "Y", "PauliZ": "Z", "Hadamard": "H", "Identity": "I"}
 
@@ -76,6 +76,7 @@ class Hamiltonian:
 
         self._coeffs = coeffs
         self._ops = observables
+        self.simplify()
 
     @property
     def coeffs(self):
@@ -104,6 +105,35 @@ class Hamiltonian:
         """
         return self.coeffs, self.ops
 
+    @property
+    def wires(self):
+        r"""The sorted union of wires from all operators.
+
+        Returns:
+            (Wires): Combined wires present in all terms, sorted.
+        """
+        return qml.wires.Wires.all_wires([op.wires for op in self.ops], sort=True)
+
+    def simplify(self):
+        r"""Simplifies the Hamiltonian by combining like-terms."""
+
+        coeffs = []
+        ops = []
+
+        for c, op in zip(self.coeffs, self.ops):
+            op = op if isinstance(op, Tensor) else Tensor(op)
+            if op in ops:
+                coeffs[ops.index(op)] += c
+                if np.allclose([coeffs[ops.index(op)]], [0]):
+                    del coeffs[ops.index(op)]
+                    del ops[ops.index(op)]
+            else:
+                ops.append(op.prune())
+                coeffs.append(c)
+
+        self._coeffs = coeffs
+        self._ops = ops
+
     def __str__(self):
         terms = []
 
@@ -120,18 +150,50 @@ class Hamiltonian:
 
         return "\n+ ".join(terms)
 
+    def _data(self):
+
+        data = set()
+
+        for co, op in zip(*self.terms):
+            obs = op.non_identity_obs if isinstance(op, Tensor) else [op]
+            tensor = []
+            for ob in obs:
+                parameters = tuple(
+                    param.tostring() for param in ob.parameters
+                )  # Converts params into hashable type
+                tensor.append((ob.name, ob.wires, parameters))
+            data.add((co, frozenset(tensor)))
+
+        return data
+
+    def __eq__(self, H):
+
+        if isinstance(H, type(self)):
+            val = self._data() == H._data()
+        if isinstance(H, (Tensor, Observable)):
+            val = self._data() == {(1, frozenset(H._data()))}
+
+        return val
+
     def __matmul__(self, H):
 
         coeffs1 = self.coeffs.copy()
         terms1 = self.ops.copy()
 
-        coeffs2 = H.coeffs
-        terms2 = H.ops
+        coeffs = []
+        terms = []
 
-        coeffs = [i[0] * i[1] for i in itertools.product(coeffs1, coeffs2)]
-        term_list = itertools.product(terms1, terms2)
+        if isinstance(H, type(self)):
+            coeffs2 = H.coeffs
+            terms2 = H.ops
 
-        terms = [qml.operation.Tensor(i[0], i[1]) for i in term_list]
+            coeffs = [c[0] * c[1] for c in itertools.product(coeffs1, coeffs2)]
+            term_list = itertools.product(terms1, terms2)
+            terms = [qml.operation.Tensor(t[0], t[1]) for t in term_list]
+
+        if isinstance(H, (Tensor, Observable)):
+            coeffs = coeffs1
+            terms = [term @ H for term in terms1]
 
         return qml.Hamiltonian(coeffs, terms)
 
@@ -140,40 +202,14 @@ class Hamiltonian:
         coeffs = self.coeffs.copy()
         ops = self.ops.copy()
 
-        op_attributes = []
+        if isinstance(H, type(self)):
+            coeffs.extend(H.coeffs.copy())
+            ops.extend(H.ops.copy())
+        if isinstance(H, (Tensor, Observable)):
+            coeffs.append(1)
+            ops.append(H)
 
-        for op in ops:
-            name = op.name if isinstance(op.name, list) else [op.name]
-
-            if "Hermitian" not in name:
-                op_attributes.append(set(zip(name, op.wires)))
-
-        new_coeffs = []
-        new_ops = []
-
-        for coeff, op in zip(H.coeffs, H.ops):
-            name = op.name if isinstance(op.name, list) else [op.name]
-
-            if "Hermitian" in name:
-                new_coeffs.append(coeff)
-                new_ops.append(op)
-
-            else:
-                attr = set(zip(name, op.wires))
-
-                if attr in op_attributes:
-                    coeffs[op_attributes.index(attr)] += coeff
-                else:
-                    coeffs.append(coeff)
-                    ops.append(op)
-                    op_attributes.append(attr)
-
-        for i, c in enumerate(coeffs):
-            if not np.allclose([c], [0]):
-                new_coeffs.append(c)
-                new_ops.append(ops[i])
-
-        return qml.Hamiltonian(new_coeffs, new_ops)
+        return qml.Hamiltonian(coeffs, ops)
 
     def __mul__(self, a):
         coeffs = [a * c for c in self.coeffs.copy()]
@@ -183,6 +219,20 @@ class Hamiltonian:
 
     def __sub__(self, H):
         return self.__add__(H.__mul__(-1))
+
+    def __iadd__(self, H):
+        if isinstance(H, Hamiltonian):
+            self._coeffs.extend(H.coeffs.copy())
+            self._ops.extend(H.ops.copy())
+        if isinstance(H, (Tensor, Observable)):
+            self._coeffs.append(1)
+            self._ops.append(H)
+
+    def __imul__(self, a):
+        self._coeffs = [a * c for c in self.coeffs]
+
+    def __isub__(self, H):
+        self.__iadd__(H.__mul__(-1))
 
 
 class VQECost:
@@ -259,7 +309,7 @@ class VQECost:
     """
 
     def __init__(
-        self, ansatz, hamiltonian, device, interface="autograd", diff_method="best", **kwargs
+            self, ansatz, hamiltonian, device, interface="autograd", diff_method="best", **kwargs
     ):
         coeffs, observables = hamiltonian.terms
         self.hamiltonian = hamiltonian
