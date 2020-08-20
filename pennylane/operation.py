@@ -906,6 +906,37 @@ class Observable(Operator):
 
         raise ValueError("Can only perform tensor products between observables.")
 
+    def _data(self):
+
+        parameters = tuple(param.tostring() for param in self.parameters)
+        return {(self.name, self.wires, parameters)}
+
+    def __eq__(self, other):
+
+        if isinstance(other, (Observable, Tensor)):
+            val = self._data() == other._data()
+        if isinstance(other, qml.Hamiltonian):
+            val = other._data() == self._data()
+
+        return val
+
+    def __add__(self, other):
+
+        if isinstance(other, (Observable, Tensor)):
+            val = qml.Hamiltonian([1, 1], [self, other])
+        if isinstance(other, qml.Hamiltonian):
+            val = other + self
+
+        return val
+
+    def __mul__(self, a):
+        return qml.Hamiltonian([a], [self])
+
+    __rmul__ = __mul__
+
+    def __sub__(self, other):
+        return self.__add__(other.__mul__(-1))
+
     def diagonalizing_gates(self):
         r"""Returns the list of operations such that they
         diagonalize the observable in the computational basis.
@@ -1045,6 +1076,43 @@ class Tensor(Observable):
         raise ValueError("Can only perform tensor products between observables.")
 
     __imatmul__ = __matmul__
+
+    def _data(self):
+
+        obs = self.non_identity_obs
+        tensor = set()
+
+        for ob in obs:
+            parameters = tuple(param.tostring() for param in ob.parameters)
+            tensor.add((ob.name, ob.wires, parameters))
+
+        return tensor
+
+    def __eq__(self, other):
+
+        if isinstance(other, (Tensor, Observable)):
+            val = self._data() == other._data()
+        if isinstance(other, qml.Hamiltonian):
+            val = other._data() == self._data()
+
+        return val
+
+    def __add__(self, other):
+
+        if isinstance(other, (Tensor, Observable)):
+            val = qml.Hamiltonian([1, 1], [self, other])
+        if isinstance(other, qml.Hamiltonian):
+            val = other + self
+
+        return val
+
+    def __mul__(self, a):
+        return qml.Hamiltonian([a], [self])
+
+    __rmul__ = __mul__
+
+    def __sub__(self, other):
+        return self.__add__(other.__mul__(-1))
 
     @property
     def eigvals(self):
