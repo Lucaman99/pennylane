@@ -67,6 +67,7 @@ JUNK_INPUTS = [None, [], tuple(), 5.0, {"junk": -1}]
 valid_hamiltonians = [
     ((1.0,), (qml.Hermitian(H_TWO_QUBITS, [0, 1]),)),
     ((-0.8,), (qml.PauliZ(0),)),
+    ((0.6,), (qml.PauliX(0) @ qml.PauliX(1),)),
     ((0.5, -1.6), (qml.PauliX(0), qml.PauliY(1))),
     ((0.5, -1.6), (qml.PauliX(1), qml.PauliY(1))),
     ((0.5, -1.6), (qml.PauliX("a"), qml.PauliY("b"))),
@@ -75,6 +76,20 @@ valid_hamiltonians = [
     ([1.5, 2.0], [qml.PauliZ(0), qml.PauliY(2)]),
     (np.array([-0.1, 0.5]), [qml.Hermitian(H_TWO_QUBITS, [0, 1]), qml.PauliY(0)]),
     ((0.5, 1.2), (qml.PauliX(0), qml.PauliX(0) @ qml.PauliX(1))),
+]
+
+valid_hamiltonians_str = [
+    "(1.0) [Hermitian0'1]",
+    "(-0.8) [Z0]",
+    "(0.6) [X0 X1]",
+    "(0.5) [X0]\n+ (-1.6) [Y1]",
+    "(0.5) [X1]\n+ (-1.6) [Y1]",
+    "(0.5) [Xa]\n+ (-1.6) [Yb]",
+    "(1.1) [X0]\n+ (-0.4) [Hermitian2]\n+ (0.333) [Z2]",
+    "(-0.4) [Hermitian0'2]\n+ (0.15) [Z1]",
+    "(1.5) [Z0]\n+ (2.0) [Y2]",
+    "(-0.1) [Hermitian0'1]\n+ (0.5) [Y0]",
+    "(0.5) [X0]\n+ (1.2) [X0 X1]",
 ]
 
 invalid_hamiltonians = [
@@ -527,6 +542,12 @@ class TestHamiltonian:
         H = qml.vqe.Hamiltonian(coeffs, ops)
         assert set(H.wires) == set([w for op in H.ops for w in op.wires])
 
+    @pytest.mark.parametrize("terms, string", zip(valid_hamiltonians, valid_hamiltonians_str))
+    def test_hamiltonian_str(self, terms, string):
+        """Tests that the __str__ function for printing is correct"""
+        H = qml.vqe.Hamiltonian(*terms)
+        assert H.__str__() == string
+
     @pytest.mark.parametrize(("old_H", "new_H"), simplify_hamiltonians)
     def test_simplify(self, old_H, new_H):
         """Tests the simplify method"""
@@ -749,6 +770,7 @@ class TestVQE:
             dev,
             optimize=True,
             interface=interface,
+            diff_method="parameter-shift"
         )
         cost2 = qml.ExpvalCost(
             qml.templates.StronglyEntanglingLayers,
@@ -756,6 +778,7 @@ class TestVQE:
             dev,
             optimize=False,
             interface=interface,
+            diff_method="parameter-shift"
         )
 
         w = qml.init.strong_ent_layers_uniform(2, 4, seed=1967)
@@ -781,9 +804,11 @@ class TestVQE:
         dev = qml.device("default.qubit", wires=4)
         hamiltonian = big_hamiltonian
 
-        cost = qml.ExpvalCost(qml.templates.StronglyEntanglingLayers, hamiltonian, dev, optimize=True)
+        cost = qml.ExpvalCost(
+            qml.templates.StronglyEntanglingLayers, hamiltonian, dev, optimize=True, diff_method="parameter-shift"
+        )
         cost2 = qml.ExpvalCost(
-            qml.templates.StronglyEntanglingLayers, hamiltonian, dev, optimize=False
+            qml.templates.StronglyEntanglingLayers, hamiltonian, dev, optimize=False, diff_method="parameter-shift"
         )
 
         w = qml.init.strong_ent_layers_uniform(2, 4, seed=1967)
@@ -857,7 +882,7 @@ class TestVQE:
             pytest.skip("This test is only intended for tape mode")
 
         dev = qml.device("default.qubit", wires=2)
-        p = [1, 1, 1]
+        p = np.array([1., 1., 1.])
 
         def ansatz(params, **kwargs):
             qml.RX(params[0], wires=0)
@@ -867,11 +892,7 @@ class TestVQE:
 
         h = qml.Hamiltonian([1, 1], [qml.PauliZ(0), qml.PauliZ(1)])
         qnodes = qml.ExpvalCost(ansatz, h, dev)
-
-        qn = qnodes._qnode_for_metric_tensor_in_tape_mode
-        mt = qnodes.metric_tensor([p])
-
-        assert isinstance(qn, qml.qnodes.BaseQNode)
+        mt = qml.metric_tensor(qnodes)(p)
         assert qml.tape_mode_active()  # Check that tape mode is still active
 
         qml.disable_tape()
@@ -911,7 +932,7 @@ class TestVQE:
         assert np.allclose(res, exp)
 
         with pytest.warns(UserWarning, match="ExpvalCost was instantiated with multiple devices."):
-            qnodes.metric_tensor([w])
+            qml.metric_tensor(qnodes)(w)
 
     def test_multiple_devices_opt_true(self):
         """Test if a ValueError is raised when multiple devices are passed when optimize=True."""

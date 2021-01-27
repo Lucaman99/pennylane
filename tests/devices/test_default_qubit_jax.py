@@ -28,6 +28,11 @@ class TestQNodeIntegration:
             "supports_inverse_operations": True,
             "supports_analytic_computation": True,
             "passthru_interface": "jax",
+            "passthru_devices": {
+                "tf": "default.qubit.tf",
+                "autograd": "default.qubit.autograd",
+                "jax": "default.qubit.jax",
+            },
         }
         assert cap == capabilities
 
@@ -439,11 +444,13 @@ class TestHighLevelIntegration:
         dev = qml.device("default.qubit.jax", wires=2)
 
         def circuit(weights):
-            qml.templates.StronglyEntanglingLayers(weights, wires=[0, 1])
+            qml.RX(weights[0], wires=0)
+            qml.RY(weights[1], wires=1)
+            qml.CNOT(wires=[0, 1])
             return qml.expval(qml.PauliZ(0))
 
         qnode = qml.QNode(circuit, dev, interface="jax", diff_method="parameter-shift")
-        weights = jnp.array(qml.init.strong_ent_layers_normal(n_wires=2, n_layers=2))
+        weights = jnp.array([0.1, 0.2])
 
         with pytest.raises(qml.QuantumFunctionError, match="The JAX interface can only be used with"):
             qnode(weights)

@@ -92,12 +92,12 @@ class DefaultQubitAutograd(DefaultQubit):
         "CRX": autograd_ops.CRX,
         "CRY": autograd_ops.CRY,
         "CRZ": autograd_ops.CRZ,
+        "CRot": autograd_ops.CRot,
         "MultiRZ": autograd_ops.MultiRZ,
     }
 
     C_DTYPE = np.complex128
     R_DTYPE = np.float64
-    _asarray = staticmethod(np.tensor)
     _dot = staticmethod(np.dot)
     _abs = staticmethod(np.abs)
     _reduce_sum = staticmethod(lambda array, axes: np.sum(array, axis=tuple(axes)))
@@ -105,13 +105,22 @@ class DefaultQubitAutograd(DefaultQubit):
     _flatten = staticmethod(lambda array: array.flatten())
     _gather = staticmethod(lambda array, indices: array[indices])
     _einsum = staticmethod(np.einsum)
-    _cast = staticmethod(np.tensor)
+    _cast = staticmethod(np.asarray)
     _transpose = staticmethod(np.transpose)
     _tensordot = staticmethod(np.tensordot)
     _conj = staticmethod(np.conj)
     _imag = staticmethod(np.imag)
     _roll = staticmethod(np.roll)
     _stack = staticmethod(np.stack)
+
+    @staticmethod
+    def _asarray(array, dtype=None):
+        res = np.asarray(array, dtype=dtype)
+
+        if res.dtype is np.dtype("O"):
+            return np.hstack(array).flatten().astype(dtype)
+
+        return res
 
     def __init__(self, wires, *, shots=1000, analytic=True):
         super().__init__(wires, shots=shots, analytic=analytic, cache=0)

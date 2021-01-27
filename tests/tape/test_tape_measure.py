@@ -118,6 +118,34 @@ class TestBetaStatistics:
         assert q._get_info(B) == {"owner": tensor_op}
         assert q._get_info(tensor_op) == {"owns": (A, B), "owner": meas_proc}
 
+    @pytest.mark.parametrize(
+        "op1,op2",
+        [
+            (qml.PauliY, qml.PauliX),
+            (qml.Hadamard, qml.Hadamard),
+            (qml.PauliY, qml.Identity),
+            (qml.Identity, qml.Identity),
+        ],
+    )
+    def test_queueing_tensor_observable(self, op1, op2, stat_func, return_type):
+        """Test that if the constituent components of a tensor operation are not
+        found in the queue for annotation, that they are queued first and then annotated."""
+        A = op1(0)
+        B = op2(1)
+
+        with AnnotatedQueue() as q:
+            tensor_op = A @ B
+            stat_func(tensor_op)
+
+        assert q.queue[:-1] == [A, B, tensor_op]
+        meas_proc = q.queue[-1]
+        assert isinstance(meas_proc, MeasurementProcess)
+        assert meas_proc.return_type == return_type
+
+        assert q._get_info(A) == {"owner": tensor_op}
+        assert q._get_info(B) == {"owner": tensor_op}
+        assert q._get_info(tensor_op) == {"owns": (A, B), "owner": meas_proc}
+
 
 @pytest.mark.parametrize("stat_func", [expval, var, sample])
 class TestBetaStatisticsError:
@@ -353,7 +381,7 @@ class TestState:
             return state()
 
         state_val = func()
-        assert np.allclose(state_val, dev.state)
+        assert np.allclose(state_val, func.device.state)
 
     @pytest.mark.usefixtures("skip_if_no_tf_support")
     def test_interface_tf(self, skip_if_no_tf_support):
@@ -400,7 +428,7 @@ class TestState:
         """Test if an error is raised if the jacobian method is called via qml.grad"""
         dev = qml.device("default.qubit", wires=4)
 
-        @qnode(dev)
+        @qnode(dev, diff_method="parameter-shift")
         def func(x):
             for i in range(4):
                 qml.RX(x, wires=i)
@@ -449,7 +477,7 @@ class TestState:
 
         dev = qml.device(device, wires=4)
 
-        @qnode(dev)
+        @qnode(dev, diff_method="parameter-shift")
         def func():
             for i in range(4):
                 qml.Hadamard(i)
@@ -513,7 +541,7 @@ class TestState:
         """Test if an error is raised when custom wire labels are used"""
         dev = qml.device("default.qubit", wires=wires)
 
-        @qnode(dev)
+        @qnode(dev, diff_method="parameter-shift")
         def func():
             qml.Hadamard(wires=wires[0])
             for i in range(3):
@@ -750,7 +778,7 @@ class TestDensityMatrix:
         """Test if an error is raised when custom wire labels are used"""
         dev = qml.device(dev_name, wires=wires)
 
-        @qnode(dev)
+        @qnode(dev, diff_method="parameter-shift")
         def func():
             qml.Hadamard(wires=wires[0])
             for i in range(3):
