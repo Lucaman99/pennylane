@@ -65,7 +65,6 @@ def _get_slice(index, axis, num_axes):
     idx[axis] = index
     return tuple(idx)
 
-
 # pylint: disable=unused-argument
 class DefaultQubit(QubitDevice):
     """Default qubit device for PennyLane.
@@ -121,6 +120,7 @@ class DefaultQubit(QubitDevice):
         "CRY",
         "CRZ",
         "CRot",
+        "Measure"
     }
 
     observables = {"PauliX", "PauliY", "PauliZ", "Hadamard", "Hermitian", "Identity"}
@@ -209,6 +209,9 @@ class DefaultQubit(QubitDevice):
         if operation.base_name in self._apply_ops:
             axes = self.wires.indices(wires)
             return self._apply_ops[operation.base_name](state, axes, inverse=operation.inverse)
+
+        if operation.base_name == "Measure":
+            return self._apply_measurement(state, operation.projectors, wires)
 
         matrix = self._get_unitary_matrix(operation)
 
@@ -636,6 +639,28 @@ class DefaultQubit(QubitDevice):
         )
 
         return self._einsum(einsum_indices, phases, state)
+
+    def _apply_measurement(self, state, projectors, wires):
+        r"""Apply a measurement projection to the quantum state.
+
+        Args:
+            state (array[complex]): input state
+            projectors (List[array]): projection matrices
+            wires (Wires): target wires
+
+        Returns:
+            array[complex]: output state
+        """
+
+        probs = self.analytic_probability(wires)
+
+        nr_wires = len(wires)
+        outcome = self.sample_basis_states(2 ** nr_wires, probs)
+
+        matrix = projectors[int(outcome)]
+        self._state = self._apply_unitary(state, matrix, wires) / np.sqrt(probs[outcome[0]])
+
+        return self._state
 
     def reset(self):
         """Reset the device"""
