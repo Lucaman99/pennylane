@@ -120,7 +120,7 @@ class DefaultQubit(QubitDevice):
         "CRY",
         "CRZ",
         "CRot",
-        "Measure"
+        "Measure",
     }
 
     observables = {"PauliX", "PauliY", "PauliZ", "Hadamard", "Hermitian", "Identity"}
@@ -657,7 +657,7 @@ class DefaultQubit(QubitDevice):
         nr_wires = len(wires)
         outcome = self.sample_basis_states(2 ** nr_wires, probs)
 
-        matrix = projectors[int(outcome)]
+        matrix = projectors[int(outcome[0])]
         self._state = self._apply_unitary(state, matrix, wires) / np.sqrt(probs[outcome[0]])
 
         return self._state
