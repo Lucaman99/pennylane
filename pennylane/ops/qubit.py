@@ -22,7 +22,7 @@ import functools
 import numpy as np
 
 from pennylane.templates import template
-from pennylane.operation import AnyWires, Observable, Operation, DiagonalOperation, Projection
+from pennylane.operation import AnyWires, Observable, Operation, DiagonalOperation
 from pennylane.templates.state_preparations import BasisStatePreparation, MottonenStatePreparation
 from pennylane.utils import pauli_eigs, expand
 import pennylane as qml
@@ -1740,39 +1740,6 @@ class Hermitian(Observable):
         return [QubitUnitary(self.eigendecomposition["eigvec"].conj().T, wires=list(self.wires))]
 
 
-# =============================================================================
-# Measurements
-# =============================================================================
-
-
-class Measure(Projection):
-    r"""Measure(wires)
-    A measurement in the computational basis.
-
-    **Details:**
-
-    * Number of wires: Any
-    * Number of parameters: 0
-    * Gradient recipe: None
-
-    Args:
-        wires (Sequence[int] or int): the wire(s) the operation acts on
-    """
-    num_params = 0
-    num_wires = AnyWires
-    par_domain = None
-
-    @classmethod
-    def _projectors(cls, wires):
-        nr_proj = int(2 ** len(wires))
-        projectors = [np.zeros((nr_proj, nr_proj)) for i in range(nr_proj)]
-
-        for i in range(nr_proj):
-            projectors[i][i, i] = 1
-
-        return projectors
-
-
 ops = {
     "Hadamard",
     "PauliX",
@@ -1805,7 +1772,6 @@ ops = {
     "QubitStateVector",
     "QubitUnitary",
     "DiagonalQubitUnitary",
-    "Measure",
 }
 
 
