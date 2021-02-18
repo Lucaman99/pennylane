@@ -49,8 +49,6 @@ class Measure(Projection):
         return projectors
 
 
-__qubit_projections__ = {
-    "Measure"
-}
+__qubit_projections__ = {"Measure"}
 
 __all__ = list(__qubit_projections__)
